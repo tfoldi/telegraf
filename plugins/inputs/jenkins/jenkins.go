@@ -88,8 +88,9 @@ const sampleConfig = `
 
 // measurement
 const (
-	measurementNode = "jenkins_node"
-	measurementJob  = "jenkins_job"
+	measurementComputerSet = "jenkins_cluster"
+	measurementNode        = "jenkins_node"
+	measurementJob         = "jenkins_job"
 )
 
 // SampleConfig implements telegraf.Input interface
@@ -167,6 +168,16 @@ func (j *Jenkins) initialize(client *http.Client) error {
 	return j.client.init()
 }
 
+func (j *Jenkins) gatherComputerSetData(n *nodeResponse, acc telegraf.Accumulator) error {
+	tags := map[string]string{}
+
+	fields := make(map[string]interface{})
+	fields["busy_executors"] = n.BusyExecutors
+	acc.AddFields(measurementComputerSet, fields, tags)
+
+	return nil
+}
+
 func (j *Jenkins) gatherNodeData(n node, acc telegraf.Accumulator) error {
 
 	tags := map[string]string{}
@@ -229,6 +240,11 @@ func (j *Jenkins) gatherNodesData(acc telegraf.Accumulator) {
 	if err != nil {
 		acc.AddError(err)
 		return
+	}
+	// get computer data
+	err = j.gatherComputerSetData(nodeResp, acc)
+	if err != nil {
+		acc.AddError(err)
 	}
 	// get node data
 	for _, node := range nodeResp.Computers {
@@ -339,7 +355,8 @@ func (j *Jenkins) getJobDetail(jr jobRequest, acc telegraf.Accumulator) error {
 }
 
 type nodeResponse struct {
-	Computers []node `json:"computer"`
+	Computers     []node `json:"computer"`
+	BusyExecutors int    `json:"busyExecutors"`
 }
 
 type node struct {
@@ -402,7 +419,7 @@ func (b *buildResponse) GetTimestamp() time.Time {
 }
 
 const (
-	nodePath = "/computer/api/json"
+	nodePath = "/computer/api/json?depth=1"
 	jobPath  = "/api/json"
 )
 
